@@ -26,11 +26,17 @@ router.get('/', async (req, res, next) => {
     //   - por exemplo, assim que uma pessoa é excluída, uma mensagem de
     //     sucesso pode ser mostrada
     // - error: idem para mensagem de erro
-    res.render('list-people', {
-      people,
-      success: req.flash('success'),
-      error: req.flash('error')
+    // negociação de conteúdo
+    res.format({
+      html: () =>  res.render('list-people', {
+                                people,
+                                success: req.flash('success'),
+                                error: req.flash('error')
+                              }),
+      json: () => res.json({ people })
     })
+
+   
 
   } catch (error) {
     console.error(error)
@@ -89,6 +95,43 @@ router.get('/new/', (req, res) => {
 //      - Em caso de sucesso do INSERT, colocar uma mensagem feliz
 //      - Em caso de erro do INSERT, colocar mensagem vermelhinha
 
+router.post('/', async (req, res, next) => {
+  const name = req.body.name
+  if (!name) {
+    req.flash('error', 'Nenhuma pessoa adicionada!')
+    res.redirect('/people/')
+    return;
+  }
+
+  try {
+    const [insertResult] = await db.execute(`INSERT INTO person
+                                              VALUES (NULL,?, 1, NULL)`,
+                                              [name]
+                                              )
+
+    if (!insertResult || insertResult.insertedRows < 1) {
+      throw new Error(`Não inseriu uma nova pessoa tabela graças à pessoa com ${name}`)
+    }
+
+    res.format({
+      html: () => {
+        req.flash('peopleCountChange', '+1')
+        req.flash('success', `${name} está muito feliz de se mudar para o jardim!! `)
+        res.redirect('/people/')
+      },
+      json: () => res.status(200).send({})
+    })
+
+  } catch (error) {
+        req.flash('error', `${name} se assustou e resolveu procurar outro lugar pra morar `)
+        error.friendlyMessage = 'Erro ao adicionar. Acho que o morador não gostou muito da vizinhança.'
+  } finally{
+    res.redirect('/people');
+  }
+  
+})
+
+
 
 /* DELETE uma pessoa */
 // Exercício 2: IMPLEMENTAR AQUI
@@ -97,6 +140,34 @@ router.get('/new/', (req, res) => {
 //   2. Redirecionar para a rota de listagem de pessoas
 //      - Em caso de sucesso do INSERT, colocar uma mensagem feliz
 //      - Em caso de erro do INSERT, colocar mensagem vermelhinha
+router.delete('/:id', async (req, res, next) => {
+  const id = db.escape(req.params.id) 
 
+  try {
+
+    const [result] = await db.execute(`DELETE FROM zombies.person WHERE id=${id}`)
+
+    if (!result || result.affectedRows < 1) {
+      throw new Error(`Não deletou ninguém`)
+    }
+    res.format({
+      html: () => {
+        req.flash('peopleCountChange', '-1')
+        req.flash('success', `Algumas pessoas não andam gostando muito da vizinhança! `)
+        res.redirect('/people/')
+      },
+      json: () => res.status(200).send({})
+    })
+
+  } catch (error) {
+        req.flash('error', `Algo deu errado na mudança, ninguém foi deletado.`)
+        error.friendlyMessage = 'Erro na exclusão. Acho que o morador mudou de ideia.'
+  } finally{
+    res.redirect('/people');
+  }
+  
+  
+})
 
 export default router
+
